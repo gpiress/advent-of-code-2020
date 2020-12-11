@@ -31,60 +31,122 @@ Ruleas are:
 const adjacentSeats = (i, j, grid) => {
     let occupied = 0;
 
-    if (j > 0) {
-        // left
-        if (grid[i][j-1] === '#') {
+    // left
+    let left = j - 1;
+    while (left >= 0) {
+        if (grid[i][left] === '#') {
             occupied++;
+            break;
         }
 
-        // up-left
-        if (i > 0) {
-            if (grid[i-1][j-1] === '#') {
-                occupied++;
-            }
+        if (grid[i][left] === 'L') {
+            break;
         }
-
-        // down-left
-        if (i < grid.length - 1) {
-            if (grid[i+1][j-1] === '#') {
-                occupied++;
-            }
-        }
+        left--;
     }
 
-    if (j < grid[i].length - 1) {
-        // right
-        if (grid[i][j+1] === '#') {
+    // up-left
+    left = j - 1;
+    let up = i - 1;
+    while (left >= 0 && up >= 0) {
+        if (grid[up][left] === '#') {
             occupied++;
+            break;
         }
 
-        // up-right
-        if (i > 0) {
-            if (grid[i-1][j+1] === '#') {
-                occupied++;
-            }
+        if (grid[up][left] === 'L') {
+            break;
+        }
+        left--;
+        up--;
+    }
+
+    // down-left
+    left = j - 1;
+    let down = i + 1;
+    while (left >= 0 && down < grid.length) {
+        if (grid[down][left] === '#') {
+            occupied++;
+            break;
         }
 
-        // down-right
-        if (i < grid.length - 1) {
-            if (grid[i+1][j+1] === '#') {
-                occupied++;
-            }
+        if (grid[down][left] === 'L') {
+            break;
         }
+        left--;
+        down++;
+    }
+
+    // right
+    let right = j + 1;
+    while (right < grid[i].length) {
+        if (grid[i][right] === '#') {
+            occupied++;
+            break;
+        }
+
+        if (grid[i][right] === 'L') {
+            break;
+        }
+        right++;
+    }
+
+    // up-right
+    right = j + 1;
+    up = i - 1;
+    while (right < grid[i].length && up >= 0) {
+        if (grid[up][right] === '#') {
+            occupied++;
+            break;
+        }
+
+        if (grid[up][right] === 'L') {
+            break;
+        }
+        right++;
+        up--;
+    }
+
+    // down-right
+    right = j + 1;
+    down = i + 1;
+    while (right < grid[i].length && down < grid.length) {
+        if (grid[down][right] === '#') {
+            occupied++;
+            break;
+        }
+
+        if (grid[down][right] === 'L') {
+            break;
+        }
+        right++;
+        down++;
     }
 
     // up
-    if (i > 0) {
-        if (grid[i-1][j] === '#') {
+    up = i - 1;
+    while (up >= 0) {
+        if (grid[up][j] === '#') {
             occupied++;
+            break;
         }
+        if (grid[up][j] === 'L') {
+            break;
+        }
+        up--;
     }
 
     // down
-    if (i < grid.length - 1) {
-        if (grid[i+1][j] === '#') {
+    down = i + 1;
+    while (down < grid.length) {
+        if (grid[down][j] === '#') {
             occupied++;
+            break;
         }
+        if (grid[down][j] === 'L') {
+            break;
+        }
+        down++;
     }
 
     return occupied;
@@ -123,7 +185,7 @@ const iterate = grid => {
             if (current === 'L' && occupiedAdjacents === 0) {
                 newLine = setCharAt(newLine, j, '#');
                 changedSeats++;
-            } else if (current === '#' && occupiedAdjacents >= 4) {
+            } else if (current === '#' && occupiedAdjacents >= 5) {
                 newLine = setCharAt(newLine, j, 'L');
                 changedSeats++;
             }
