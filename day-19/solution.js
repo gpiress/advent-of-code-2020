@@ -194,8 +194,8 @@ const solve = inputs => {
         let messageSize = message.length;
         let i = 0;
         
-        // Messages are either:
-        // - 42+ (42 31)+
+        // Messages follow the pseudo-regex:
+        // - 42+ 31+
 
         // So they can:
         // - Be a mix of both, but #42 always > #31
