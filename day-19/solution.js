@@ -1,6 +1,5 @@
 const readline = require('readline');
 const fs = require('fs');
-const { inflateRaw } = require('zlib');
 
 
 // add solution code
