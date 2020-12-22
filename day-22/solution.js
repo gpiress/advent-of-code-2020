@@ -33,21 +33,21 @@ const solve = inputs => {
     const round = (playerOneDeck, playerTwoDeck) => {
         let playerOneDeckCopy = [...playerOneDeck];
         let playerTwoDeckCopy = [...playerTwoDeck];
-        console.log(`Player 1's deck: ${playerOneDeckCopy}`);
-        console.log(`Player 2's deck: ${playerTwoDeckCopy}`);
+        //console.log(`Player 1's deck: ${playerOneDeckCopy}`);
+        //console.log(`Player 2's deck: ${playerTwoDeckCopy}`);
 
         const topOneCard = playerOneDeckCopy.shift();
         const topTwoCard = playerTwoDeckCopy.shift();
 
-        console.log(`Player 1 plays: ${topOneCard}`);
-        console.log(`Player 2 plays: ${topTwoCard}`);
+        //console.log(`Player 1 plays: ${topOneCard}`);
+        //console.log(`Player 2 plays: ${topTwoCard}`);
 
         if (topOneCard > topTwoCard) {
-            console.log('Player 1 wins the round!');
+            //console.log('Player 1 wins the round!');
             playerOneDeckCopy.push(topOneCard);
             playerOneDeckCopy.push(topTwoCard);
         } else {
-            console.log('Player 2 wins the round!');
+            //console.log('Player 2 wins the round!');
             playerTwoDeckCopy.push(topTwoCard);
             playerTwoDeckCopy.push(topOneCard);
         }
@@ -77,7 +77,7 @@ const solve = inputs => {
     const simulateGame = (playerOneDeck, playerTwoDeck) => {
         let i = 1;
 
-        console.log(`-- Round ${i} --`);
+        //console.log(`-- Round ${i} --`);
         let roundResults = round(playerOneDeck, playerTwoDeck);
     
         let newPlayerOneDeck = roundResults.playerOneDeck;
@@ -85,8 +85,8 @@ const solve = inputs => {
         let gameEnded = roundResults.gameEnded;
         i++;
         while (!gameEnded) {
-            console.log('');
-            console.log(`-- Round ${i} --`);
+            //console.log('');
+            //console.log(`-- Round ${i} --`);
             
             roundResults = round(newPlayerOneDeck, newPlayerTwoDeck);
             newPlayerOneDeck = roundResults.playerOneDeck;
@@ -98,13 +98,13 @@ const solve = inputs => {
         // Post game
         const playerOneScore = computeScores(newPlayerOneDeck);
         const playerTwoScore = computeScores(newPlayerTwoDeck);
-        console.log('');
-        console.log('');
-        console.log('== Post-game results ==');
-        console.log(`Player 1's deck: ${newPlayerOneDeck}`);
-        console.log(`Player 2's deck: ${newPlayerTwoDeck}`);
-        console.log(`Player 1's score: ${playerOneScore}`);
-        console.log(`Player 2's score: ${playerTwoScore}`);
+        //console.log('');
+        //console.log('');
+        //console.log('== Post-game results ==');
+        //console.log(`Player 1's deck: ${newPlayerOneDeck}`);
+        //console.log(`Player 2's deck: ${newPlayerTwoDeck}`);
+        //console.log(`Player 1's score: ${playerOneScore}`);
+        //console.log(`Player 2's score: ${playerTwoScore}`);
 
         return {
             playerOneScore,
@@ -112,7 +112,7 @@ const solve = inputs => {
         };
     };
 
-    // playsPerGame is a map of <int, List<Round>>
+    // playsPerGame is a map of <int, Set<Round>>
     let playsPerGame = new Map();
     let lastGamePlayed = 1;
 
@@ -121,50 +121,49 @@ const solve = inputs => {
             return false;
         }
 
+        const currentPlayString = JSON.stringify({ playerOneDeck: playerOneDeck, playerTwoDeck: playerTwoDeck });
         const previousPlays = playsPerGame.get(gameNumber);
 
-        const samePlays = previousPlays.filter(play => {
-            return (JSON.stringify(play.playerOneDeck) === JSON.stringify(playerOneDeck)
-                && (JSON.stringify(play.playerTwoDeck) === JSON.stringify(playerTwoDeck)));
-        });
-
-        return samePlays.length > 0;
+        return previousPlays.has(currentPlayString);
     };
 
     const updatePlaysPerGame = (gameNumber, playerOneDeck, playerTwoDeck) => {
         /*
-        console.log(`Updating playes per game for game ${gameNumber} with:`);
-        console.log(`   Player one deck - ${playerOneDeck}`);
-        console.log(`   Player two deck - ${playerTwoDeck}`);
+        //console.log(`Updating playes per game for game ${gameNumber} with:`);
+        //console.log(`   Player one deck - ${playerOneDeck}`);
+        //console.log(`   Player two deck - ${playerTwoDeck}`);
         */
         const newEntry = {
             playerOneDeck: [...playerOneDeck],
             playerTwoDeck: [...playerTwoDeck],
         };
+        const newEntryString = JSON.stringify(newEntry);
 
         if (!playsPerGame.has(gameNumber)) {
-            playsPerGame.set(gameNumber, [newEntry]);
+            let plays = new Set();
+            plays.add(newEntryString);
+            playsPerGame.set(gameNumber, plays);
         } else {
             let existingPlays = playsPerGame.get(gameNumber);
-            existingPlays.push(newEntry);
+            existingPlays.add(newEntryString);
             playsPerGame.set(gameNumber, existingPlays);
         }
     };
 
     const recursiveRound = (playerOneDeck, playerTwoDeck, roundNumber, gameNumber) => {
-        console.log('');
-        console.log(`-- Round ${roundNumber} (Game ${gameNumber}) --`);
+        //console.log('');
+        //console.log(`-- Round ${roundNumber} (Game ${gameNumber}) --`);
 
         let playerOneDeckCopy = [...playerOneDeck];
         let playerTwoDeckCopy = [...playerTwoDeck];
-        console.log(`Player 1's deck: ${playerOneDeckCopy}`);
-        console.log(`Player 2's deck: ${playerTwoDeckCopy}`);
+        //console.log(`Player 1's deck: ${playerOneDeckCopy}`);
+        //console.log(`Player 2's deck: ${playerTwoDeckCopy}`);
 
         // Rule 1: If the same round has been played in the SAME game before, player 1 wins the round
         // Check if this game had the same round before
         if (hasRoundBeenPlayed(gameNumber, playerOneDeckCopy, playerTwoDeckCopy)) {
-            console.log('Round has been played before.');
-            console.log('Player 1 wins the GAME!');
+            //console.log('Round has been played before.');
+            //console.log('Player 1 wins the GAME!');
 
             return {
                 playerOneDeck: playerOneDeckCopy,
@@ -179,8 +178,8 @@ const solve = inputs => {
         const topOneCard = playerOneDeckCopy.shift();
         const topTwoCard = playerTwoDeckCopy.shift();
 
-        console.log(`Player 1 plays: ${topOneCard}`);
-        console.log(`Player 2 plays: ${topTwoCard}`);
+        //console.log(`Player 1 plays: ${topOneCard}`);
+        //console.log(`Player 2 plays: ${topTwoCard}`);
 
         // Rule 2: If both players have at least as many cards remaining in
         // their deck as the value of the card they just drew, play a new
@@ -192,7 +191,7 @@ const solve = inputs => {
 
             lastGamePlayed++;
             let innerGameNumber = lastGamePlayed;
-            console.log(`Starting game ${innerGameNumber} to decide!`);
+            //console.log(`Starting game ${innerGameNumber} to decide!`);
 
             let innerRound = 1;
             let innerGameEnded = false;
@@ -208,21 +207,21 @@ const solve = inputs => {
             }
 
             if (smallerPlayerOneDeck.length > 0) {
-                console.log(`Player 1 wins inner game ${innerGameNumber} and the round!`);
+                //console.log(`Player 1 wins inner game ${innerGameNumber} and the round!`);
                 playerOneDeckCopy.push(topOneCard);
                 playerOneDeckCopy.push(topTwoCard);
             } else {
-                console.log(`Player 1 wins inner game ${innerGameNumber} and the round!`);
+                //console.log(`Player 1 wins inner game ${innerGameNumber} and the round!`);
                 playerTwoDeckCopy.push(topTwoCard);
                 playerTwoDeckCopy.push(topOneCard);
             }
         } else {
             if (topOneCard > topTwoCard) {
-                console.log('Player 1 wins the round!');
+                //console.log('Player 1 wins the round!');
                 playerOneDeckCopy.push(topOneCard);
                 playerOneDeckCopy.push(topTwoCard);
             } else {
-                console.log('Player 2 wins the round!');
+                //console.log('Player 2 wins the round!');
                 playerTwoDeckCopy.push(topTwoCard);
                 playerTwoDeckCopy.push(topOneCard);
             }
@@ -261,12 +260,12 @@ const solve = inputs => {
         }
 
         // Post game
-        console.log('');
-        console.log('');
-        console.log('== Post-game results ==');
-        console.log(`Player 1's deck: ${newPlayerOneDeck}`);
-        console.log(`Player 2's deck: ${newPlayerTwoDeck}`);
-        console.log(`Winner score: ${score}`);
+        //console.log('');
+        //console.log('');
+        //console.log('== Post-game results ==');
+        //console.log(`Player 1's deck: ${newPlayerOneDeck}`);
+        //console.log(`Player 2's deck: ${newPlayerTwoDeck}`);
+        //console.log(`Winner score: ${score}`);
 
         return {
             score: score,
@@ -293,7 +292,7 @@ const processLine = line => {
 
 const computeResults = () => {
     const result = solve(inputs);
-    console.log(`First part: ${result.firstPart}`);
+    //console.log(`First part: ${result.firstPart}`);
     console.log(`Second part: ${result.secondPart}`);
 };
 
