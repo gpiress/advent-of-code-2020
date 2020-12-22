@@ -3,6 +3,61 @@ const fs = require('fs');
 
 
 // add solution code
+const createTile = (number, lines) => {
+    return {
+        number: number,
+        lines: lines,
+    };
+};
+
+const reverseString = stringToReverse => {
+    return stringToReverse.split('').reverse().join('');
+}
+
+const getTileColumn = (tile, column) => {
+    const tileLines = tile.lines;
+    return tileLines.map(line => line[column]).join('');
+};
+
+const rotateTileRight = tile => {
+    const number = tile.number;
+    const originalLines = tile.lines;
+
+    let newLines = [];
+    for (let i = 0; i < originalLines.length; i++) {
+        const newLine = reverseString(getTileColumn(tile, i));
+        newLines.push(newLine);
+    }
+
+    return createTile(number, newLines);
+};
+
+const flipTileHorizontally = tile => {
+    const number = tile.number;
+    const originalLines = tile.lines;
+
+    let newLines = [];
+    for (let i = 0; i < originalLines.length; i++) {
+        const newLine = reverseString(originalLines[i]);
+        newLines.push(newLine);
+    }
+
+    return createTile(number, newLines);
+};
+
+const flipTileVertically = tile => {
+    const number = tile.number;
+    const originalLines = tile.lines;
+
+    let newLines = [];
+    for (let i = 0; i < originalLines.length; i++) {
+        const newLine = originalLines[originalLines.length - 1 - i];
+        newLines.push(newLine);
+    }
+
+    return createTile(number, newLines);
+};
+
 const solve = inputs => {
     const parseInputs = inputs => {
         let tiles = [];
@@ -25,7 +80,7 @@ const solve = inputs => {
                     j++;
                 }
 
-                tiles.push({ number: +tileNumber, lines: tileLines });
+                tiles.push(createTile(+tileNumber, tileLines));
                 i = j + 1;
             }
         }
@@ -33,693 +88,670 @@ const solve = inputs => {
         return tiles;
     };
 
-    const getTileColumn = (tile, col) => {
-        return tile.lines.reduce((prev, curr) => prev + curr[col], '');
+    const canBeNeighbors = (tile, otherTile) => {
+        const canMatch = (tileBorder, otherTile) => {
+            const lastIndex = otherTile.lines.length - 1;
+            const possibleOtherBorders = [
+                otherTile.lines[lastIndex],
+                otherTile.lines[0],
+                getTileColumn(otherTile, 0),
+                getTileColumn(otherTile, lastIndex),
+
+                reverseString(otherTile.lines[lastIndex]),
+                reverseString(otherTile.lines[0]),
+                reverseString(getTileColumn(otherTile, lastIndex)),
+                reverseString(getTileColumn(otherTile, 0)),
+            ];
+
+            if (possibleOtherBorders.indexOf(tileBorder) > -1) {
+                return true;
+            }
+        };
+
+        let directions = [];
+        let canBe = false;
+
+        const lastIndex = tile.lines.length - 1;
+
+        // UP
+        if (canMatch(tile.lines[0], otherTile)) {
+            directions.push('UP');
+            canBe = true;
+        }
+
+        // DOWN
+        if (canMatch(tile.lines[lastIndex], otherTile)) {
+            directions.push('DOWN');
+            canBe = true;
+        }
+
+        // LEFT
+        if (canMatch(getTileColumn(tile, 0), otherTile)) {
+            directions.push('LEFT');
+            canBe = true;
+        }
+
+        // RIGHT
+        if (canMatch(getTileColumn(tile, lastIndex), otherTile)) {
+            directions.push('RIGHT');
+            canBe = true;
+        }
+
+        return {
+            directions: directions,
+            canBe, canBe,
+        };
+    };
+
+    const canBeNeighborStrict = (tile, otherTile) => {
+        let directions = [];
+        let canBe = false;
+
+        const lastIndex = tile.lines.length - 1;
+
+        // UP
+        if (tile.lines[0] === otherTile.lines[lastIndex]) {
+            directions.push('UP');
+            canBe = true;
+        }
+
+        // DOWN
+        if (tile.lines[lastIndex] === otherTile.lines[0]) {
+            directions.push('DOWN');
+            canBe = true;
+        }
+
+        // LEFT
+        if (getTileColumn(tile, 0) === getTileColumn(otherTile, lastIndex)) {
+            directions.push('LEFT');
+            canBe = true;
+        }
+
+        // RIGHT
+        if (getTileColumn(tile, lastIndex) === getTileColumn(otherTile, 0)) {
+            directions.push('RIGHT');
+            canBe = true;
+        }
+
+        return {
+            canBe, canBe,
+            directions: directions,
+        };
+    };
+
+    const adjustTileForStateNumber = (originalTile, number) => {
+        // [0, 3] -- only rotations
+        // [4, 7] -- rotations + flipHor
+        // [8, 11] -- rotations + flipVer
+        const rotations = number % 4;
+        const flippedHor = (number >= 4 && number < 8) ? true : false;
+        const flippedVert = (number >= 8 && number < 11) ? true : false;
+
+        let tempTile = createTile(originalTile.number, originalTile.lines);
+        for (let i = 0; i < rotations; i++) {
+            tempTile = rotateTileRight(tempTile);
+        }
+
+        tempTile = flippedHor ? flipTileHorizontally(tempTile) : tempTile;
+        tempTile = flippedVert ? flipTileVertically(tempTile) : tempTile;
+        
+        return {
+            newTile: tempTile,
+            rotations,
+            flippedHor,
+            flippedVert,
+        };
     }
 
-    const rotateTileRight = tile => {
-        let newTile = Object.assign({}, tile);
+    // Compute all possible neighbors for all variations of tile
+    const getAllNeighborsForTile = (tile, tiles) => {
+        let allNeighbors = [];
 
-        let newLines = [];
-        for (let i = 0; i < tile.lines[0].length; i++) {
-            const col = getTileColumn(tile, i);
-            newLines.push(col.split('').reverse().join(''));
-        }
+        // ALL_POSSIBILITIES = #rotations + #rotated_flips_hor + #rotated_flips_vert
+        const ALL_POSSIBILITIES = 4 + 4 + 4;
+        let i = 0;
+        while (i < ALL_POSSIBILITIES) {
+            //console.log(`   Finding all neighbors for ${JSON.stringify(tempTile, undefined, 4)}`);
+            let { newTile, rotations, flippedHor, flippedVert } = adjustTileForStateNumber(tile, i);
+            let uniqueNeighbors = new Set();
+            let rightNeighbors = [];
+            let leftNeighbors = [];
+            let upNeighbors = [];
+            let downNeighbors = [];
 
-        newTile.lines = newLines;
-        return newTile;
-    };
-
-    const flipTileVertical = tile => {
-        let newTile = Object.assign({}, tile);
-
-        let newLines = [];
-        for (let i = 0; i < tile.lines.length; i++) {
-            const row = tile.lines[tile.lines.length - 1 - i];
-            newLines.push(row);
-        }
-
-        newTile.lines = newLines;
-        return newTile;
-    };
-
-    const flipTileHorizontal = tile => {
-        let newTile = Object.assign({}, tile);
-
-        let newLines = [];
-        for (let i = 0; i < tile.lines.length; i++) {
-            const row = tile.lines[i];
-            const reversedRow = row.split('').reverse().join('');
-            newLines.push(reversedRow);
-        }
-
-        newTile.lines = newLines;
-        return newTile;
-    };
-
-    const canBorderMatch = (border, otherTile) => {
-        const otherBorders = new Set([
-            getTileColumn(otherTile, 0),
-            getTileColumn(otherTile, 9),
-            getTileColumn(otherTile, 0).split('').reverse().join(''),
-            getTileColumn(otherTile, 9).split('').reverse().join(''),
-            otherTile.lines[0],
-            otherTile.lines[0].split('').reverse().join(''),
-            otherTile.lines[9],
-            otherTile.lines[9].split('').reverse().join(''),
-        ]);
-
-        return otherBorders.has(border);
-    };
-
-    const getDetailedNeighbors = (tile, tiles) => {
-        const UP = "DIRECTION_UP";
-        const DOWN = "DIRECTION_DOWN";
-        const LEFT = "DIRECTION_LEFT";
-        const RIGHT = "DIRECTION_RIGHT";
-        const NONE = "NONE";
-
-        const canFitTogether = (tile, otherTile) => {
-            const firstRow = tile.lines[0];
-            const lastRow = tile.lines[9];
-            const firstCol = getTileColumn(tile, 0);
-            const lastCol = getTileColumn(tile, 9);
-
-            if (canBorderMatch(firstRow, otherTile)) {
-                return { direction: UP, tile: otherTile.number };
-            }
-
-            if (canBorderMatch(lastRow, otherTile)) {
-                return { direction: DOWN, tile: otherTile.number };
-            }
-
-            if (canBorderMatch(firstCol, otherTile)) {
-                return { direction: LEFT, tile: otherTile.number };
-            }
-
-            if (canBorderMatch(lastCol, otherTile)) {
-                return { direction: RIGHT, tile: otherTile.number };
-            }
-
-            return { direction: NONE };
-        };
-
-        const otherTilesMatches = tiles
-            .filter(otherTile => otherTile.number !== tile.number)
-            .map(otherTile => canFitTogether(tile, otherTile));
-
-        let initialNeighborsState = {
-            up: [],
-            down: [],
-            left: [],
-            right: [],
-            total: 0,
-        };
-
-        return otherTilesMatches
-            .reduce((previous, otherTileMatch) => {
-                if (otherTileMatch.direction === UP) {
-                    previous.up.push(otherTileMatch.tile);
-                    previous.total++;
+            for (let otherTile of tiles) {
+                if (tile.number === otherTile.number) {
+                    continue;
                 }
+    
+                let j = 0
+                while (j < ALL_POSSIBILITIES) {
+                    let otherNewTileState = adjustTileForStateNumber(otherTile, j);
+                    let otherNewTile = otherNewTileState.newTile;
 
-                if (otherTileMatch.direction === DOWN) {
-                    previous.down.push(otherTileMatch.tile);
-                    previous.total++;
-                }
-
-                if (otherTileMatch.direction === LEFT) {
-                    previous.left.push(otherTileMatch.tile);
-                    previous.total++;
-                }
-
-                if (otherTileMatch.direction === RIGHT) {
-                    previous.right.push(otherTileMatch.tile);
-                    previous.total++;
-                }
-
-                return previous;
-            }, initialNeighborsState);
-    };
-
-    const getPossibleNeighbors = tiles => {
-        let possibleNeighbors = new Map();
-        for (let tile of tiles) {
-            let neighborsPerRotation = [];
-            let maxRotation = -1;
-            let maxNeighbors = -1;
-            
-            let tempTile = Object.assign({}, tile);
-            for (let i = 0; i < 12; i++) {
-                const tileNeighbors = getDetailedNeighbors(tempTile, tiles);
-                neighborsPerRotation.push(tileNeighbors);
-
-                if (tileNeighbors.total > maxNeighbors) {
-                    maxRotation = i;
-                    maxNeighbors = tileNeighbors.total;
-                }
-
-                tempTile = rotateTileRight(tempTile);
-                if (i % 4 === 0) {
-                    tempTile = Object.assign({}, tile);
-                }
-
-                if (i >= 4 && i < 8) {
-                    tempTile = flipTileVertical(tempTile);
-                }
-
-                if (i >= 8) {
-                    tempTile = flipTileHorizontal(tempTile);
-                }
-            }
-
-            const neighborInfo = {
-                maxRotation: maxRotation,
-                maxNeighbors: maxNeighbors,
-                rotations: neighborsPerRotation,
-            }
-            possibleNeighbors.set(tile.number, neighborInfo);
-        }
-
-        return possibleNeighbors;
-    };
-
-    const printBadTiles = possibleNeighbors => {
-        console.log(`   Tiles with < 2 neighbors:`);
-        for (let entry of possibleNeighbors) {
-            if (entry[1].maxNeighbors < 2) {
-                console.log(`   ${JSON.stringify(entry[0])}: ${ JSON.stringify( entry[1] ) }`);
-            }
-        }
-    };
-
-    const getDistinctNeighbors = rotations => {
-        return rotations.reduce((previous, current) => {
-            current.up.forEach(tile => previous.add(tile));
-            current.down.forEach(tile => previous.add(tile));
-            current.left.forEach(tile => previous.add(tile));
-            current.right.forEach(tile => previous.add(tile));
-
-            return previous;
-        }, new Set()); 
-    };
-
-    const getRestrictedTiles = possibleNeighbors => {
-        let restrictedTiles = [];
-        for (let entry of possibleNeighbors) {
-            if (entry[1].maxNeighbors === 2) {
-                const restrictedRotations = entry[1].rotations.filter(rotation => rotation.total === 2);
-                const validRotations = entry[1].rotations
-                    .map((rotation, index) => {
-                        if (rotation.total !== 2) {
-                            return undefined;
+                    const { canBe, directions } = canBeNeighborStrict(newTile, otherNewTile);
+                    if (canBe) {
+                        uniqueNeighbors.add(otherTile.number);
+                        if (directions.indexOf('UP') > -1) {
+                            upNeighbors.push({ number: otherTile.number, state: j });
                         }
 
-                        return { index: index, up: rotation.up, down: rotation.down, left: rotation.left, right: rotation.right };
-                    })
-                    .filter(rotation => rotation !== undefined);
-                //console.log(`   Tile ${entry[0]} has only 2 neighbors in ${restrictedRotations.length} variations:`);
+                        if (directions.indexOf('DOWN') > -1) {
+                            downNeighbors.push({ number: otherTile.number, state: j });
+                        }
 
-                const allPossibleNeighbors = getDistinctNeighbors(restrictedRotations);
+                        if (directions.indexOf('LEFT') > -1) {
+                            leftNeighbors.push({ number: otherTile.number, state: j });
+                        }
 
-                if (allPossibleNeighbors.size === 2) {
-                    restrictedTiles.push({ number: entry[0], validNeighbors: allPossibleNeighbors, validRotations: validRotations });
+                        if (directions.indexOf('RIGHT') > -1) {
+                            rightNeighbors.push({ number: otherTile.number, state: j });
+                        }
+                    }
+
+                    j++;
                 }
             }
+
+            // Ignore alternatives that have no possible neighbors
+            if (uniqueNeighbors.size >= 2) {
+                allNeighbors.push({
+                    uniqueNeighbors: Array.from(uniqueNeighbors),
+                    rightNeighbors: rightNeighbors,
+                    leftNeighbors: leftNeighbors,
+                    upNeighbors: upNeighbors,
+                    downNeighbors: downNeighbors,
+                    state: i,
+                });
+            }
+
+            i++;
         }
 
-        return restrictedTiles;
-    }
-
-    const printRestrictedTiles = restrictedTiles => {
-        console.log('Really restricted tiles (only 2 valid neighbors):');
-        console.log('-------------------------------------------------');
-        
-        restrictedTiles.map(tile => {
-            console.log(`   Tile ${tile.number} has only ${ JSON.stringify( Array.from(tile.validNeighbors) )} as possible neighbors. Valid rotations are ${ JSON.stringify(tile.validRotations) }`);
-        });
-    }
-
-    const firstPart = restrictedTiles => {
-        if (restrictedTiles.length === 4) {
-            console.log('   Only 4 possible borders. Lucky!');
-
-            return restrictedTiles.reduce((prev, curr) => prev * curr.number, 1);
-        } else {
-            console.log(`   Too many possible borders <${restrictedTiles.length}>. Unlucky!`);
-        }
-
-        return -1;
+        return allNeighbors;
     };
 
-    const createImage = (tiles, neighbors, restrictedTiles) => {
-        console.log(`   Creating image!`);
-        const arrangeTileToTopLeft = (tile, rotation) => {
-            let tempTile = Object.assign({}, tile);
-            //console.log(`       Arranging first tile to border: ${JSON.stringify(tempTile, undefined, 4)}`);
-            //console.log(`       Rotations: ${JSON.stringify(rotation, undefined, 4)}`);
-            let rightTile = -1;
-            let downTile = -1;
-            if (rotation.down.length === 1 && rotation.left.length === 1) {
-                tempTile = rotateTileRight(tempTile);
-                tempTile = rotateTileRight(tempTile);
-                tempTile = rotateTileRight(tempTile);
+    const buildAdjancencyMap = tiles => {
+        let adjacencyMap = new Map();
 
-                downTile = rotation.left[0];
-                rightTile = rotation.down[0];
+        tiles.forEach(tile => {
+            const tilePossibleNeighbors = getAllNeighborsForTile(tile, tiles);
+            adjacencyMap.set(tile.number, tilePossibleNeighbors);
+        });
+
+        return adjacencyMap;
+    };
+
+    const findBordersNumbers = adjacencyMap => {
+        let borders = [];
+        for (let tileNumber of adjacencyMap.keys()) {
+            const possibleNeighbors = adjacencyMap.get(tileNumber);
+
+            const tileProlificVariations = possibleNeighbors.filter(neighborInfo => neighborInfo.uniqueNeighbors.length > 2);
+            if (tileProlificVariations.length === 0) {
+                // Can't get the tile to any state where it has more than 2 neighbor tiles!
+                borders.push(tileNumber);
             }
-
-            if (rotation.up.length === 1 && rotation.left.length === 1) {
-                tempTile = rotateTileRight(tempTile);
-                tempTile = rotateTileRight(tempTile);
-
-                downTile = rotation.up[0];
-                rightTile = rotation.left[0];
-            }
-
-            if (rotation.up.length === 1 && rotation.right.length === 1) {
-                tempTile = rotateTileRight(tempTile);
-
-                downTile = rotation.right[0];
-                rightTile = rotation.up[0];
-            }
-
-            if (rotation.down.length === 1 && rotation.right.length === 1) {
-                downTile = rotation.down[0];
-                rightTile = rotation.right[0];
-            }
-
-            return { tile: tempTile, right: rightTile, down: downTile };
-        };
-
-        const adjustTileToMatchBorder = (tile, borderToMatch, direction) => {
-            let tempTile = Object.assign({}, tile);
-            const lastIndex = tempTile.lines.length - 1;
-
-            let firstRow = tempTile.lines[0];
-            let lastRow = tempTile.lines[lastIndex];
-            let firstCol = getTileColumn(tempTile, 0);
-            let lastCol = getTileColumn(tempTile, lastIndex);
-
-            const currentBorders = [firstRow, lastRow, firstCol, lastCol];
-
-            const flippedTileHor = flipTileHorizontal(tempTile);
-            const flippedBordersHorizontal = [
-                flippedTileHor.lines[0],
-                flippedTileHor.lines[lastIndex],
-                getTileColumn(flippedTileHor, 0),
-                getTileColumn(flippedTileHor, lastIndex),
-            ];
-
-            const flippedTileVert = flipTileVertical(tempTile);
-            const flippedBordersVertical = [
-                flippedTileVert.lines[0],
-                flippedTileVert.lines[lastIndex],
-                getTileColumn(flippedTileVert, 0),
-                getTileColumn(flippedTileVert, lastIndex),
-            ];
-
-            if (direction === 'UP') {
-                if (firstRow === borderToMatch) {
-                    return tempTile;
-                }
-
-                if (currentBorders.indexOf(borderToMatch) > -1) {
-                    // only rotations needed
-                    while (firstRow !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        firstRow = tempTile.lines[0];
-                    }
-
-                    return tempTile;
-                }
-
-                if (flippedBordersHorizontal.indexOf(borderToMatch) > -1) {
-                    tempTile = Object.assign({}, flippedTileHor);
-                    firstRow = tempTile.lines[0];
-                    while (firstRow !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        firstRow = tempTile.lines[0];
-                    }
-
-                    return tempTile;
-                }
-
-                if (flippedBordersVertical.indexOf(borderToMatch) > -1) {
-                    tempTile = Object.assign({}, flippedTileVert);
-                    firstRow = tempTile.lines[0];
-                    while (firstRow !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        firstRow = tempTile.lines[0];
-                    }
-
-                    return tempTile;
-                }
-            }
-
-            if (direction === 'DOWN') {
-                if (lastRow === borderToMatch) {
-                    return tempTile;
-                }
-
-                if (currentBorders.indexOf(borderToMatch) > -1) {
-                    // only rotations needed
-                    while (lastRow !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        lastRow = tempTile.lines[lastIndex];
-                    }
-
-                    return tempTile;
-                }
-
-                if (flippedBordersHorizontal.indexOf(borderToMatch) > -1) {
-                    tempTile = Object.assign({}, flippedTileHor);
-                    lastRow = tempTile.lines[lastIndex];
-                    while (lastRow !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        lastRow = tempTile.lines[lastIndex];
-                    }
-
-                    return tempTile;
-                }
-
-                if (flippedBordersVertical.indexOf(borderToMatch) > -1) {
-                    tempTile = Object.assign({}, flippedTileVert);
-                    lastRow = tempTile.lines[lastIndex];;
-                    while (lastRow !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        lastRow = tempTile.lines[lastIndex];
-                    }
-
-                    return tempTile;
-                }
-            }
-
-            if (direction === 'LEFT') {
-                if (firstCol === borderToMatch) {
-                    return tempTile;
-                }
-
-                if (currentBorders.indexOf(borderToMatch) > -1) {
-                    // only rotations needed
-                    while (firstCol !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        firstCol = getTileColumn(tempTile, 0);
-                    }
-
-                    return tempTile;
-                }
-
-                if (flippedBordersHorizontal.indexOf(borderToMatch) > -1) {
-                    tempTile = Object.assign({}, flippedTileHor);
-                    firstCol = tempTile.lines[0];
-                    while (firstCol !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        firstCol = getTileColumn(tempTile, 0);
-                    }
-
-                    return tempTile;
-                }
-
-                if (flippedBordersVertical.indexOf(borderToMatch) > -1) {
-                    tempTile = Object.assign({}, flippedTileVert);
-                    firstCol = tempTile.lines[0];
-                    while (firstCol !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        firstCol = getTileColumn(tempTile, 0);
-                    }
-
-                    return tempTile;
-                }
-            }
-
-            if (direction === 'RIGHT') {
-                if (lastCol === borderToMatch) {
-                    return tempTile;
-                }
-
-                if (currentBorders.indexOf(borderToMatch) > -1) {
-                    // only rotations needed
-                    while (lastCol !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        lastCol = getTileColumn(tempTile, lastIndex);
-                    }
-
-                    return tempTile;
-                }
-
-                if (flippedBordersHorizontal.indexOf(borderToMatch) > -1) {
-                    tempTile = Object.assign({}, flippedTileHor);
-                    lastCol = getTileColumn(tempTile, lastIndex);
-                    while (lastCol !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        lastCol = getTileColumn(tempTile, lastIndex);
-                    }
-
-                    return tempTile;
-                }
-
-                if (flippedBordersVertical.indexOf(borderToMatch) > -1) {
-                    tempTile = Object.assign({}, flippedTileVert);
-                    lastCol = getTileColumn(tempTile, lastIndex);
-                    while (lastCol !== borderToMatch) {
-                        tempTile = rotateTileRight(tempTile);
-                        lastCol = getTileColumn(tempTile, lastIndex);
-                    }
-
-                    return tempTile;
-                }
-            }
-
-            return undefined;
-        };
-
-        const adjustTileToFitGrid = (newTile, newTilePos, tileGrid) => {
-            let adjusted = false;
-            let adjustedTile = undefined;
-
-            // UP
-            if (newTilePos.x > 0) {
-                const neighbor = tileGrid[newTilePos.x - 1][newTilePos.y];
-                if (neighbor !== undefined) {
-                    const rowToMatch = neighbor.lines[neighbor.lines.length - 1];
-                    adjustedTile = adjustTileToMatchBorder(newTile, rowToMatch, 'UP');
-                    adjusted = true;
-                }
-            }
-
-            // DOWN
-            if (newTilePos.x < tileGrid.length) {
-                const neighbor = tileGrid[newTilePos.x + 1][newTilePos.y];
-                if (neighbor !== undefined) {
-                    const rowToMatch = neighbor.lines[0];
-
-                    if (adjusted && adjustedTile.lines[adjustedTile.lines.length - 1] !== rowToMatch) {
-                        console.log(`       Shit happened, already adjusted tile ${newTile.number} but it doesn't match DOWN neighbor`);
-                        console.log(`           Found: <${adjustedTile.lines[adjustedTile.lines.length - 1]}>, expected: <${rowToMatch}>`);
-                        return undefined;
-                    }
-                    adjustedTile = adjustTileToMatchBorder(newTile, rowToMatch, 'UP');
-                    adjusted = true;
-                }
-            }
-
-            // LEFT
-            if (newTilePos.y > 0) {
-                const neighbor = tileGrid[newTilePos.x][newTilePos.y - 1];
-                if (neighbor !== undefined) {
-                    const colToMatch = getTileColumn(neighbor, neighbor.lines.length - 1);
-
-                    if (adjusted && getTileColumn(adjustedTile, 0) !== colToMatch) {
-                        console.log(`       Shit happened, already adjusted tile ${newTile.number} but it doesn't match LEFT neighbor`);
-                        console.log(`           Found: <${getTileColumn(adjustedTile, 0)}>, expected: <${colToMatch}>`);
-                        return undefined;
-                    }
-                    console.log(`           Trying to match ${newTile.number} to the right of tile ${neighbor.number}`);
-                    adjustedTile = adjustTileToMatchBorder(newTile, colToMatch, 'LEFT');
-                    console.log(`           Adjusted tile ${newTile.number} to the right of tile ${neighbor.number}`);
-                    adjusted = true;
-                }
-            }
-
-            if (newTilePos.y < tileGrid.length) {
-                const neighbor = tileGrid[newTilePos.x][newTilePos.y + 1];
-                if (neighbor !== undefined) {
-                    const colToMatch = getTileColumn(neighbor, 0);
-
-                    if (adjusted && getTileColumn(adjustedTile, neighbor.lines.length - 1) !== colToMatch) {
-                        console.log(`       Shit happened, already adjusted tile ${newTile.number} but it doesn't match RIGHT neighbor`);
-                        console.log(`           Found: <${getTileColumn(adjustedTile, neighbor.lines.length - 1)}>, expected: <${colToMatch}>`);
-                        return undefined;
-                    }
-                    adjustedTile = adjustTileToMatchBorder(newTile, colToMatch, 'RIGHT');
-                    adjusted = true;
-                }
-            }
-
-            return adjustedTile;
-        };
-
-        const getValidPositionsInGrid = (tileGrid, validNeighborsNumbers) => {
-            let emptyPositions = [];
-
-            for (let i = 0; i < tileGrid.length; i++) {
-                for (let j = 0; j < tileGrid.length; j++) {
-                    if (tileGrid[i][j] === undefined) {
-                        emptyPositions.push({ x: i, y: j });
-                    }
-                }
-            }
-
-            const validEmptyPositions = emptyPositions.filter(position => {
-                const { x, y } = position;
-                let neighbors = [];
-                const lastPos = tileGrid.length - 1;
-
-                if (x > 0 && tileGrid[x - 1][y] !== undefined) {
-                    neighbors.push(tileGrid[x - 1][y]);
-                }
-
-                if (x < lastPos && tileGrid[x + 1][y] !== undefined) {
-                    neighbors.push(tileGrid[x + 1][y]);
-                }
-
-                if (y > 0 && tileGrid[x][y - 1] !== undefined) {
-                    neighbors.push(tileGrid[x][y - 1]);
-                }
-
-                if (y < lastPos && tileGrid[x][y + 1] !== undefined) {
-                    neighbors.push(tileGrid[x][y + 1]);
-                }
-
-                const invalidNeighbors = neighbors.filter(neighbor => !validNeighborsNumbers.has(neighbor.number));
-                return neighbors.length > 0 && invalidNeighbors.length === 0;
-            });
-
-            return validEmptyPositions;
-        };
-
-        const getTileByNumber = (tiles, number) => {
-            return tiles.filter(tile => tile.number === number)[0];
-        };
-        
-        const validRotation = restrictedTiles[3].validRotations[0];
-        const toBeTopLeft = getTileByNumber(tiles, restrictedTiles[3].number);
-        const { tile, right, down } = arrangeTileToTopLeft(toBeTopLeft, validRotation);
-        const topLeft = tile;
-
-        console.log(`Adjusted top-left tile: ${JSON.stringify(tile, null, 4)}`);
-
-        let visited = new Set();
-        visited.add(topLeft.number);
-
-        let toVisit = [
-            right, 
-            down,
-        ];
-
-        const sideSize = Math.floor(Math.sqrt(tiles.length));
-        let tileGrid = [];
-        for (let i = 0; i < sideSize; i++) {
-            let newLine = [];
-            for (let j = 0; j < sideSize; j++) {
-                newLine.push(undefined);
-            }
-            tileGrid.push(newLine);
         }
 
-        tileGrid[0][0] = topLeft;
+        return borders;
+    };
 
-        while (toVisit.length > 0) {
-            let currentTileNumber = toVisit.shift();
-            console.log(`   Visiting tile number ${currentTileNumber}`);
-            let currTile = Object.assign({}, getTileByNumber(tiles, currentTileNumber));
+    const getTileByNumber = (tiles, tileNumber) => {
+        return tiles.filter(tile => tile.number === tileNumber)[0];
+    };
 
-            let currNeighborInfo = neighbors.get(currentTileNumber);
-            let currValidNeighbors = getDistinctNeighbors(currNeighborInfo.rotations);
+    const buildPuzzle = (borderNumbers, adjacencyMap, tiles) => {
+        const isNumberInNeighborList = (neighborList, number) => {
+            const matching = neighborList.filter(neighborInfo => neighborInfo.number === number); 
+            return matching.length > 0;
+        };
 
-            let validPositions = getValidPositionsInGrid(tileGrid, currValidNeighbors);
-            let fitFound = false;
-            for (let i = 0; i < validPositions.length; i++) {
-                const currPos = validPositions[i];
-                console.log(`       Trying to fit tile ${currentTileNumber} at pos ${JSON.stringify(currPos)}`);
-                let adjustedTile = adjustTileToFitGrid(currTile, currPos, tileGrid,  currValidNeighbors);
+        const doesTileFit = (tile, adjacencyMap, puzzle, x, y) => {
+            const lastIndex = puzzle.length - 1;
 
-                if (adjustedTile !== undefined) {
-                    fitFound = true;
-                    tileGrid[currPos.x][currPos.y] = adjustedTile;
-                    console.log(`       Managed to fit tile ${currentTileNumber} at pos ${JSON.stringify(currPos)}`);
-                    break;
+            const leftNeighbor = y > 0 ? puzzle[x][y - 1] : undefined;
+            const rightNeighbor = y < lastIndex ? puzzle[x][y + 1] : undefined
+            const upNeighbor = x > 0 ? puzzle[x - 1][y] : undefined;
+            const downNeighbor = x < lastIndex ? puzzle[x + 1][y] : undefined;
+
+            if (leftNeighbor === undefined && rightNeighbor === undefined && upNeighbor === undefined && downNeighbor === undefined) {
+                //console.error(`Something went wrong. No neighbors set for pos { x: ${x}, y: ${y} }, anything could fit.`);
+                return { fits: true, positions: adjacencyMap.get(tile.number) };
+            }
+
+            let validStates = [];
+            let statesPopulated = false;
+
+            if (leftNeighbor) {
+                //console.log(`   [${tile.number}]: Checking left neighbors`);
+                let validInnerStates = new Set();
+                const neighborNumber = leftNeighbor.tile.number;
+                const neighborState = leftNeighbor.state;
+                let neighborNeighbors = adjacencyMap.get(neighborNumber);
+                // Only check for the state the tile actually is on the board
+                const validNeighborNeighbors = neighborNeighbors.filter(neighbors => neighbors.state === neighborState);
+
+                validNeighborNeighbors
+                    .filter(neighbors => isNumberInNeighborList(neighbors.rightNeighbors, tile.number))
+                    .forEach(neighbors => {
+                        const neighborsInfo = neighbors.rightNeighbors;
+                        const matchingInfo = neighborsInfo.filter(info => info.number === tile.number);
+                        matchingInfo
+                            .map(info => info.state)
+                            .forEach(state => validInnerStates.add(state));
+                    });
+                
+                if (!statesPopulated) {
+                    validStates = Array.from(validInnerStates);
+                    statesPopulated = true;
+                }
+            }
+
+            if (rightNeighbor) {
+                //console.log(`   [${tile.number}]: Checking right neighbors`);
+                let validInnerStates = new Set();
+                const neighborNumber = rightNeighbor.tile.number;
+                const neighborState = rightNeighbor.state;
+                let neighborNeighbors = adjacencyMap.get(neighborNumber);
+                // Only check for the state the tile actually is on the board
+                const validNeighborNeighbors = neighborNeighbors.filter(neighbors => neighbors.state === neighborState);
+
+                validNeighborNeighbors
+                    .filter(neighbors => isNumberInNeighborList(neighbors.leftNeighbors, tile.number))
+                    .forEach(neighbors => {
+                        const neighborsInfo = neighbors.leftNeighbors;
+                        const matchingInfo = neighborsInfo.filter(info => info.number === tile.number);
+                        matchingInfo
+                            .map(info => info.state)
+                            .forEach(state => validInnerStates.add(state));
+                    });
+                
+                if (!statesPopulated) {
+                    validStates = Array.from(validInnerStates);
+                    statesPopulated = true;
+                } else {
+                    // Remove states that are already present but not in validInnerStates'
+                    validStates = validStates.filter(state => validInnerStates.has(state));
+                }
+            }
+
+            if (upNeighbor) {
+                //console.log(`   [${tile.number}]: Checking up neighbors`);
+                let validInnerStates = new Set();
+                const neighborNumber = upNeighbor.tile.number;
+                const neighborState = upNeighbor.state;
+                let neighborNeighbors = adjacencyMap.get(neighborNumber);
+                // Only check for the state the tile actually is on the board
+                const validNeighborNeighbors = neighborNeighbors.filter(neighbors => neighbors.state === neighborState);
+
+                validNeighborNeighbors
+                    .filter(neighbors => isNumberInNeighborList(neighbors.downNeighbors, tile.number))
+                    .forEach(neighbors => {
+                        const neighborsInfo = neighbors.downNeighbors;
+                        const matchingInfo = neighborsInfo.filter(info => info.number === tile.number);
+                        matchingInfo
+                            .map(info => info.state)
+                            .forEach(state => validInnerStates.add(state));
+                    });
+                
+                if (!statesPopulated) {
+                    validStates = Array.from(validInnerStates);
+                    statesPopulated = true;
+                } else {
+                    // Remove states that are already present but not in validInnerStates'
+                    validStates = validStates.filter(state => validInnerStates.has(state));
+                }
+            }
+
+            if (downNeighbor) {
+                //console.log(`   [${tile.number}]: Checking down neighbors`);
+                let validInnerStates = new Set();
+                const neighborNumber = downNeighbor.tile.number;
+                const neighborState = downNeighbor.state;
+                let neighborNeighbors = adjacencyMap.get(neighborNumber);
+                // Only check for the state the tile actually is on the board
+                const validNeighborNeighbors = neighborNeighbors.filter(neighbors => neighbors.state === neighborState);
+
+                validNeighborNeighbors
+                    .filter(neighbors => isNumberInNeighborList(neighbors.upNeighbors, tile.number))
+                    .forEach(neighbors => {
+                        const neighborsInfo = neighbors.upNeighbors;
+                        const matchingInfo = neighborsInfo.filter(info => info.number === tile.number);
+                        matchingInfo
+                            .map(info => info.state)
+                            .forEach(state => validInnerStates.add(state));
+                    });
+                
+                if (!statesPopulated) {
+                    validStates = Array.from(validInnerStates);
+                    statesPopulated = true;
+                } else {
+                    // Remove states that are already present but not in validInnerStates'
+                    validStates = validStates.filter(state => validInnerStates.has(state));
+                }
+            }
+
+            if (validStates.length === 0) {
+                return {
+                    fits: false,
+                    positions: [],
+                };
+            }
+
+            const initialPositions = adjacencyMap.get(tile.number);
+            const candidates = initialPositions.filter(position => validStates.indexOf(position.state) > -1);
+
+            return {
+                fits: true,
+                positions: candidates,
+            };
+        };
+
+        const findFittingPositions = (tile, adjacencyMap, usedTiles, puzzle, x, y, lastIndex) => {
+            const { fits, positions } = doesTileFit(tile, adjacencyMap, puzzle, x, y);
+
+            if (!fits) {
+                console.log(`       Tile ${tile.number} does not fit in pos [${x}, ${y}]`);
+                return [];
+            }
+
+            let allPossiblePosition = adjacencyMap.get(tile.number);
+            const fittingPositions = allPossiblePosition.filter(position => {
+                //console.log(`Filtering some weird positions: ${JSON.stringify(positions, undefined, 4)}`);
+                const matchingPositions = positions.filter(otherPosition => position.state === otherPosition.state);
+                return matchingPositions.length > 0;
+            });
+
+            let isLeftEmpty = y > 0 && puzzle[x][y - 1] === undefined;
+            let isRightEmpty = y < lastIndex && puzzle[x][y + 1] === undefined;
+            let isUpEmpty = x > 0 && puzzle[x - 1][y] === undefined;
+            let isDownEmpty = x < lastIndex && puzzle[x + 1][y] === undefined;
+
+            const reallyFittingPositions = fittingPositions
+                .filter(position => !isLeftEmpty ? true : position.leftNeighbors.filter(left => !usedTiles.has(left.number)).length > 0)
+                .filter(position => !isRightEmpty ? true : position.rightNeighbors.filter(right => !usedTiles.has(right.number)).length > 0)
+                .filter(position => !isUpEmpty ? true : position.upNeighbors.filter(up => !usedTiles.has(up.number)).length > 0)
+                .filter(position => !isDownEmpty ? true : position.downNeighbors.filter(down => !usedTiles.has(down.number)).length > 0);
+            
+            
+            //console.log('');
+            //console.log(`       ${reallyFittingPositions.length} Really fitting positions for tile ${tile.number} in pos [${x}, ${y}] -- ${JSON.stringify(reallyFittingPositions, undefined, 4)}`);
+            return reallyFittingPositions;
+        };
+
+        const getToVisitTiles = (rightNeighbors, leftNeighbors, upNeighbors, downNeighbors, x, y, maxIndex, sideSize) => {
+            let toVisitNodes = [];
+            
+            if (y < sideSize - 1) {
+                if (rightNeighbors.length === 1) {
+                    let toVisit = { number: rightNeighbors[0].number, x: x, y: y + 1 };
+                    toVisitNodes.unshift(toVisit);
+                } else {
+                    rightNeighbors.forEach(right => {
+                        let toVisit = { number: right.number, x: x, y: y + 1 };
+                        toVisitNodes.push(toVisit);
+                    });
+                }
+            }
+
+            if (y > 0) {
+                if (leftNeighbors.length === 1) {
+                    let toVisit = { number: leftNeighbors[0].number, x: x, y: y - 1 };
+                    toVisitNodes.unshift(toVisit);
+                } else {
+                    leftNeighbors.forEach(left => {
+                        let toVisit = { number: left.number, x: x, y: y - 1 };
+                        toVisitNodes.push(toVisit);
+                    });
+                }
+            }
+
+            if (x > 0) {
+                if (upNeighbors.length === 1) {
+                    let toVisit = { number: upNeighbors[0].number, x: x - 1, y: y };
+                    toVisitNodes.unshift(toVisit);
+                } else {
+                    upNeighbors.forEach(up => {
+                        let toVisit = { number: up.number, x: x - 1, y: y };
+                        toVisitNodes.push(toVisit);
+                    });
+                }
+            }
+
+            if (x < sideSize - 1) {
+                if (downNeighbors.length === 1) {
+                    let toVisit = { number: downNeighbors[0].number, x: x + 1, y: y };
+                    toVisitNodes.unshift(toVisit);
+                } else {
+                    downNeighbors.forEach(down => {
+                        let toVisit = { number: down.number, x: x + 1, y: y };
+                        toVisitNodes.push(toVisit);
+                    });
                 }
             }
             
-            if (fitFound) {
-                visited.add(currentTileNumber);
-                // Add new tiles to visit
-                for (let neighbor of currValidNeighbors) {
-                    if (!visited.has(neighbor)) {
-                        toVisit.push(neighbor);
-                    }
+            return toVisitNodes;
+        };
+
+        const sideSize = Math.floor(Math.sqrt(tiles.length));
+        const lastIndex = tiles[0].lines.length - 1;
+        let puzzle = [];
+        let emptySlots = tiles.length;
+        for (let i = 0; i < sideSize; i++) {
+            let puzzleLine = [];
+            for (let j = 0; j < sideSize; j++) {
+                puzzleLine.push(undefined);
+                emptySlots++;
+            }
+            puzzle.push(puzzleLine);
+        }
+
+        // top-left tile can be any of the border tiles
+        let usedTiles = new Set();
+        const topLeftNumber = borderNumbers[0];
+        let toVisit = [ { number: topLeftNumber, x: 0, y: 0 } ];
+
+        while (emptySlots > 0) {
+            if (toVisit.length === 0) {
+                break;
+            }
+            const { number, x, y } = toVisit.shift();
+
+            if (usedTiles.has(number)) {
+                //console.log(`   Tile ${number} already on the board`);
+                continue;
+            }
+
+            //console.log(`   Trying to fit tile ${number} at pos { x: ${x}, y: ${y} }`);
+            const visitingTile = getTileByNumber(tiles, number);
+
+            const fittingPositions = findFittingPositions(visitingTile, adjacencyMap, usedTiles, puzzle, x, y, sideSize - 1);
+            if (fittingPositions.length === 0) {
+                console.warn(`      The dream is over, couldn't fit tile ${number}.`);
+                continue;
+            }
+
+            // Put tile in the right position
+            const { state, rightNeighbors, leftNeighbors, upNeighbors, downNeighbors } = fittingPositions[0];
+            const { newTile } = adjustTileForStateNumber(visitingTile, state);
+
+            //console.log(`   Tile ${number} fits in pos [${x}, ${y}], with state ${state}.`);
+            //console.log(JSON.stringify(newTile));
+            
+            puzzle[x][y] = { tile: newTile, state: state };
+            usedTiles.add(number);
+            emptySlots--;
+
+            // Add neighbors to visit
+            // Visit first the more restricted one, for example if the tile only has 1 left neighbor possible
+            let toVisitTempNodes = getToVisitTiles(rightNeighbors, leftNeighbors, upNeighbors, downNeighbors, x, y, lastIndex, sideSize);
+
+            toVisit = toVisit.concat(toVisitTempNodes);
+        }
+
+        return puzzle;
+    };
+
+    const buildImage = puzzle => {
+        const getImageFromTile = tile => {
+            // Gotta remove borders, that is, first and last lines, first and last columns
+            let imageLines = [];
+            let tileSize = tile.lines.length;
+
+            for (let i = 1; i < tileSize - 1; i++) {
+                const tileLine = tile.lines[i];
+                imageLines.push(tileLine.substring(1, tileSize - 1));
+            }
+            return imageLines;
+        };
+
+        let tileLength = puzzle[0][0].tile.lines.length;
+        let imageLines = Array.from({ length: puzzle.length * (tileLength - 2) }).fill('');
+        for (let i = 0; i < puzzle.length; i++) {
+            for (let j = 0; j < puzzle.length; j++) {
+                const { tile } = puzzle[i][j];
+                const tileImage = getImageFromTile(tile);
+
+                const startLine = i * (tileLength - 2);
+                for (let k = startLine; k < startLine + tileImage.length; k++) {
+                    imageLines[k] += tileImage[k - startLine];
                 }
             }
         }
-        
 
-        return "some image here";
+        return imageLines;
     };
 
-    const findSeaMonters = image => {
-        // might have to rotate or flip the image!
-        return { image: image, seaMonsterTiles: -1 };
-    }
+    const countEmptySeaTiles = image => {
+        const hereBeMonsters = imageTile => {
+            let imageLines = imageTile.lines;
+            let count = 0;
+            let startingPositions = [];
 
-    const secondPart = (tiles, neighbors, restrictedTiles) => {
-        const image = createImage(tiles, neighbors, restrictedTiles);
-        const { newImage, seaMonsterTiles } = findSeaMonters(image);
+            const monsterPattern = [
+                [18],
+                [0, 5, 6, 11, 12, 17, 18, 19],
+                [1, 4, 7, 10, 13, 16],
+            ];
 
-        const nonSeaMonsterHashes = -1;
+            for (let i = 1; i < imageLines.length - 1; i++) {
+                for (let j = 0; j < imageLines.length - 20; j++) {
+                    let isMatch = true;
 
-        return nonSeaMonsterHashes;
-    }
+                    // Check middle line first since it's the most restricted
+                    for (let k = 0; k < monsterPattern[1].length; k++) {
+                        const indexToCheck = j + monsterPattern[1][k];
+                        if (imageLines[i][indexToCheck] !== '#') {
+                            isMatch = false;
+                            break;
+                        }
+                    }
 
-    const printTiles = tiles => {
-        console.log('Tile numbers:');
-        console.log('-------------');
-        console.log('');
+                    if (!isMatch) {
+                        continue;
+                    }
 
-        console.log(`   ${tiles[0].number}      ${tiles[1].number}      ${tiles[2].number}`);
-        console.log('');
-        console.log(`   ${tiles[3].number}      ${tiles[4].number}      ${tiles[5].number}`);
-        console.log('');
-        console.log(`   ${tiles[6].number}      ${tiles[7].number}      ${tiles[8].number}`);
-        console.log('');
-        console.log('');
-        console.log('Tile lines:');
-        console.log('-------------');
-        console.log('');
+                    // Check third line next since it's more restricted
+                    for (let k = 0; k < monsterPattern[2].length; k++) {
+                        const indexToCheck = j + monsterPattern[2][k];
+                        if (imageLines[i + 1][indexToCheck] !== '#') {
+                            isMatch = false;
+                            break;
+                        }
+                    }
 
-        for (let i = 0; i < 3; i++) {
-            let firstTile = i * 3;
-            for (let j = 0; j < 10; j++) {
-                const tileLine = tiles[firstTile].lines[j] + '      ' + tiles[firstTile + 1].lines[j] + '       ' + tiles[firstTile + 2].lines[j];
-                console.log(`   ${tileLine}`);
+                    if (!isMatch) {
+                        continue;
+                    }
+
+                    // Finally check the first line
+                    const indexToCheck = j + 18;
+                    isMatch = imageLines[i - 1][indexToCheck] === '#';
+
+                    if (isMatch) {
+                        console.log(`   Found monster starting at pos [${i}, ${j}]`);
+                        count++;
+                        startingPositions.push({ x: i, y: j });
+                    }
+                }
             }
 
-            console.log('');
-            console.log('');
-        }
-    };
+            return {
+                count,
+                startingPositions,
+            };
+        };
 
-    const tiles = parseInputs(inputs);
-    const neighbors = getPossibleNeighbors(tiles);
-    printBadTiles(neighbors);
-    const restrictedTiles = getRestrictedTiles(neighbors);
-    printRestrictedTiles(restrictedTiles);
-    //printTiles(tiles);
+        const seaTilesPerLine = line => {
+            const lineAsList = line.split('');
+            return lineAsList.filter(letter => letter === '#').length;
+        }
+
+        const ALL_POSSIBILITIES = 4 + 4 + 4;
+
+        let imageTile = createTile(1, image);
+        let i = 0;
+        let count = 0;
+        while (i < ALL_POSSIBILITIES) {        
+            imageTile = adjustTileForStateNumber(imageTile, i).newTile;
+            console.log(`Trying to find monsters in state ${i}`);
+            const monstersFound = hereBeMonsters(imageTile);
+            count = monstersFound.count;
+
+            if (count > 0) {
+                break;
+            }
+            i++;
+        }
+
+        const MONSTER_TILE_COUNT = 15;
+        const totalSeaTiles = imageTile.lines.reduce((prev, curr) => prev + seaTilesPerLine(curr), 0);
+
+        return totalSeaTiles - (MONSTER_TILE_COUNT * count);
+    }
+
+    let scrambledTiles = parseInputs(inputs);
+    let adjacencyMap = buildAdjancencyMap(scrambledTiles);
+    let borderNumbers = findBordersNumbers(adjacencyMap);
+
+    console.log("Found border candidates:");
+    borderNumbers.forEach(border => console.log(`   ${border}`));
+    console.log("-------------------------");
+    console.log('');
+
+    const puzzle = buildPuzzle(borderNumbers, adjacencyMap, scrambledTiles);
     
+    console.log("-------------------------");
+    console.log('');
+    console.log("Found puzzle solution:");
+    console.log("-------------------------");
+    console.log('');
+    for (let i = 0; i < puzzle.length; i++) {
+        let newLine = [];
+        for (let j = 0; j < puzzle.length; j++) {
+            if (puzzle[i][j]) {
+                newLine.push(puzzle[i][j].tile.number);
+            } else {
+                newLine.push(-999);
+            }
+        }
+        console.log(newLine.join('  '));
+    }
+
+    const image = buildImage(puzzle);
+    console.log("-------------------------");
+    console.log('');
+    console.log("Built original image:");
+    console.log("-------------------------");
+    console.log('');
+    image.forEach(line => console.log(line));
+    console.log("-------------------------");
+    console.log('');
+
     return {
-        firstPart: firstPart(restrictedTiles),
-        secondPart: secondPart(tiles, neighbors, restrictedTiles),
+        firstPart: borderNumbers.reduce((prev, curr) => prev * curr, 1),
+        secondPart: countEmptySeaTiles(image),
     };
 }
 
